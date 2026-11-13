@@ -1,13 +1,28 @@
 -- Mini Atendente: criação das tabelas e carga inicial da FAQ.
 -- Este arquivo roda automaticamente na primeira vez que o container do banco sobe.
 
+-- Busca de texto em português que ignora acentos ("cartao" encontra "cartão")
+CREATE EXTENSION IF NOT EXISTS unaccent;
+CREATE TEXT SEARCH CONFIGURATION pt_sem_acento (COPY = portuguese);
+ALTER TEXT SEARCH CONFIGURATION pt_sem_acento
+    ALTER MAPPING FOR hword, hword_part, word
+    WITH unaccent, portuguese_stem;
+
 -- Perguntas frequentes da loja
 CREATE TABLE faq (
     id             SERIAL PRIMARY KEY,
     pergunta       TEXT NOT NULL,
     resposta       TEXT NOT NULL,
-    palavras_chave TEXT NOT NULL DEFAULT ''
+    palavras_chave TEXT NOT NULL DEFAULT '',
+    -- Vetor de busca calculado automaticamente: a pergunta pesa mais (A)
+    -- que as palavras-chave (B)
+    busca          TSVECTOR GENERATED ALWAYS AS (
+        setweight(to_tsvector('pt_sem_acento', pergunta), 'A') ||
+        setweight(to_tsvector('pt_sem_acento', palavras_chave), 'B')
+    ) STORED
 );
+
+CREATE INDEX idx_faq_busca ON faq USING GIN (busca);
 
 -- Uma conversa por atendimento
 CREATE TABLE conversas (
@@ -35,17 +50,17 @@ CREATE INDEX idx_mensagens_conversa   ON mensagens (conversa_id);
 INSERT INTO faq (pergunta, resposta, palavras_chave) VALUES
 ('Qual é o prazo de entrega?',
  'O prazo de entrega é de 3 a 7 dias úteis para capitais e de 5 a 12 dias úteis para as demais cidades, contados a partir da confirmação do pagamento.',
- 'prazo entrega chegar demora dias envio'),
+ 'prazo entrega chegar demora quanto tempo dias envio pedido'),
 
 ('Como acompanho meu pedido?',
  'Depois do envio, você recebe por e-mail o código de rastreio. Também é possível acompanhar em "Meus pedidos", na sua conta.',
- 'rastreio rastrear acompanhar pedido código onde está'),
+ 'rastreio rastrear acompanhar pedido código onde está chegou'),
 
 ('Quanto custa o frete?',
  'O frete é calculado pelo CEP na página do produto ou no carrinho. Compras acima de R$ 299 têm frete grátis para todo o Brasil.',
  'frete valor custo envio grátis cep'),
 
-('Quais formas de pagamento vocês aceitam?',
+('Quais formas de pagamento são aceitas?',
  'Aceitamos Pix, boleto bancário e cartões de crédito das principais bandeiras.',
  'pagamento pagar pix boleto cartão crédito formas'),
 
@@ -79,7 +94,7 @@ INSERT INTO faq (pergunta, resposta, palavras_chave) VALUES
 
 ('Meu produto chegou com defeito, o que faço?',
  'Sentimos muito! Abra uma solicitação em "Meus pedidos" em até 7 dias após o recebimento, com fotos do defeito. Faremos a troca sem custo de frete.',
- 'defeito defeituoso quebrado danificado avariado não funciona'),
+ 'defeito defeituoso quebrado veio danificado avariado não funciona'),
 
 ('Como altero o endereço de entrega?',
  'O endereço pode ser alterado em "Meus pedidos" enquanto o pedido ainda não foi enviado. Depois do envio, não é possível alterar.',
@@ -97,7 +112,7 @@ INSERT INTO faq (pergunta, resposta, palavras_chave) VALUES
  'Na tela de login, clique em "Esqueci minha senha". Você vai receber no e-mail um link para criar uma nova senha.',
  'senha esqueci recuperar redefinir login acesso'),
 
-('Vocês têm loja física?',
+('Existe loja física?',
  'Não. A Loja Pixel funciona somente online, com entrega para todo o Brasil.',
  'loja física endereço retirar retirada presencial'),
 
