@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 
-from app.routes import health
-
+from app.routes import conversas, health
 app = FastAPI(
     title="Mini Atendente",
     description="API de atendimento virtual que responde clientes com base em uma FAQ.",
@@ -9,3 +8,4 @@ app = FastAPI(
 )
 
 app.include_router(health.router)
+app.include_router(conversas.router)
