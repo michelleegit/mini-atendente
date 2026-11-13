@@ -44,7 +44,7 @@ def abrir_conversa(dados: ConversaCriar, conn=Depends(get_conn)):
 )
 def enviar_mensagem(conversa_id: int, dados: MensagemCriar, conn=Depends(get_conn)):
     """Registra a mensagem do cliente e devolve a resposta do bot."""
-    buscar_conversa(conn, conversa_id)
+    conversa = buscar_conversa(conn, conversa_id)
 
     sql_mensagem = """
         INSERT INTO mensagens (conversa_id, autor, texto)
@@ -56,7 +56,7 @@ def enviar_mensagem(conversa_id: int, dados: MensagemCriar, conn=Depends(get_con
         sql_mensagem, (conversa_id, "cliente", dados.texto)
     ).fetchone()
 
-    texto_bot, novo_status = gerar_resposta(conn, dados.texto)
+    texto_bot, novo_status = gerar_resposta(conn, dados.texto, conversa["status"])
 
     resposta_bot = conn.execute(
         sql_mensagem, (conversa_id, "bot", texto_bot)
