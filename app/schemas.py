@@ -45,3 +45,8 @@ class RespostaMensagem(BaseModel):
     mensagem_cliente: MensagemSaida
     resposta_bot: MensagemSaida
     status_conversa: Literal["aberta", "transferida"]
+
+
+class ConversaResumo(ConversaSaida):
+    total_mensagens: int
+    ultima_mensagem_em: datetime | None
