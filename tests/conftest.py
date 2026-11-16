@@ -7,6 +7,16 @@ from app.db import DATABASE_URL, get_conn
 from app.main import app
 
 
+@pytest.fixture(autouse=True)
+def sem_modelo_de_linguagem(monkeypatch):
+    """Garante que nenhum teste chame o modelo de linguagem de verdade.
+
+    Mesmo que o .env tenha uma chave, os testes rodam sem ela: são rápidos,
+    não gastam cota e não dependem da internet.
+    """
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+
+
 @pytest.fixture
 def conn():
     """Conexão usada por um teste inteiro.
