@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.db import get_conn
 from app.schemas import (
     ConversaCriar,
     ConversaDetalhe,
+    ConversaResumo,
     ConversaSaida,
     MensagemCriar,
     RespostaMensagem,
@@ -88,3 +91,38 @@ def ler_conversa(conversa_id: int, conn=Depends(get_conn)):
         (conversa_id,),
     ).fetchall()
     return {**conversa, "mensagens": mensagens}
+
+
+@router.get("", response_model=list[ConversaResumo])
+def listar_conversas(
+    cliente: str | None = Query(default=None, min_length=1, max_length=100),
+    status_conversa: Literal["aberta", "transferida"] | None = Query(
+        default=None, alias="status"
+    ),
+    limite: int = Query(default=20, ge=1, le=100),
+    conn=Depends(get_conn),
+):
+    """Lista conversas, das mais recentes para as mais antigas.
+
+    Filtros opcionais: cliente e status. Cada conversa vem com o total de
+    mensagens e a data da última mensagem.
+    """
+    return conn.execute(
+        """
+        SELECT
+            c.id,
+            c.cliente,
+            c.status,
+            c.criada_em,
+            COUNT(m.id)      AS total_mensagens,
+            MAX(m.criada_em) AS ultima_mensagem_em
+        FROM conversas c
+        LEFT JOIN mensagens m ON m.conversa_id = c.id
+        WHERE (%(cliente)s::text IS NULL OR c.cliente = %(cliente)s)
+          AND (%(status)s::text  IS NULL OR c.status  = %(status)s)
+        GROUP BY c.id
+        ORDER BY c.criada_em DESC, c.id DESC
+        LIMIT %(limite)s
+        """,
+        {"cliente": cliente, "status": status_conversa, "limite": limite},
+    ).fetchall()
