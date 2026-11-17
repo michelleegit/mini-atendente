@@ -1,6 +1,6 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.db import get_conn
 from app.schemas import (
@@ -14,6 +14,18 @@ from app.schemas import (
 from app.services.atendimento import gerar_resposta
 
 router = APIRouter(prefix="/conversas", tags=["conversas"])
+
+# Documenta no Swagger o erro 404 dos endpoints que buscam uma conversa pelo id
+RESPOSTA_404 = {
+    404: {
+        "description": "Conversa não encontrada",
+        "content": {
+            "application/json": {"example": {"detail": "Conversa não encontrada"}}
+        },
+    }
+}
+
+ID_CONVERSA = Path(description="Id da conversa, devolvido ao abrir a conversa")
 
 
 def buscar_conversa(conn, conversa_id: int) -> dict:
@@ -44,8 +56,13 @@ def abrir_conversa(dados: ConversaCriar, conn=Depends(get_conn)):
     "/{conversa_id}/mensagens",
     response_model=RespostaMensagem,
     status_code=status.HTTP_201_CREATED,
+    responses=RESPOSTA_404,
 )
-def enviar_mensagem(conversa_id: int, dados: MensagemCriar, conn=Depends(get_conn)):
+def enviar_mensagem(
+    dados: MensagemCriar,
+    conversa_id: int = ID_CONVERSA,
+    conn=Depends(get_conn),
+):
     """Registra a mensagem do cliente e devolve a resposta do bot."""
     conversa = buscar_conversa(conn, conversa_id)
 
@@ -77,8 +94,8 @@ def enviar_mensagem(conversa_id: int, dados: MensagemCriar, conn=Depends(get_con
     }
 
 
-@router.get("/{conversa_id}", response_model=ConversaDetalhe)
-def ler_conversa(conversa_id: int, conn=Depends(get_conn)):
+@router.get("/{conversa_id}", response_model=ConversaDetalhe, responses=RESPOSTA_404)
+def ler_conversa(conversa_id: int = ID_CONVERSA, conn=Depends(get_conn)):
     """Devolve a conversa com todas as mensagens, em ordem de envio."""
     conversa = buscar_conversa(conn, conversa_id)
     mensagens = conn.execute(
@@ -95,11 +112,20 @@ def ler_conversa(conversa_id: int, conn=Depends(get_conn)):
 
 @router.get("", response_model=list[ConversaResumo])
 def listar_conversas(
-    cliente: str | None = Query(default=None, min_length=1, max_length=100),
-    status_conversa: Literal["aberta", "transferida"] | None = Query(
-        default=None, alias="status"
+    cliente: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Mostra só as conversas deste cliente",
     ),
-    limite: int = Query(default=20, ge=1, le=100),
+    status_conversa: Literal["aberta", "transferida"] | None = Query(
+        default=None,
+        alias="status",
+        description="Mostra só as conversas com este status",
+    ),
+    limite: int = Query(
+        default=20, ge=1, le=100, description="Quantidade máxima de conversas (1 a 100)"
+    ),
     conn=Depends(get_conn),
 ):
     """Lista conversas, das mais recentes para as mais antigas.
